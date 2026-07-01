@@ -13,7 +13,10 @@ export default function Logo() {
       >
         <path d="M1 0V19.5" stroke="#F3F3F3" strokeWidth="0.5" />
       </svg>
-      <a href="https://togetherai.link" target="_blank">
+      <a
+        href="https://togetherai.link/?utm_source=blinkshot&utm_medium=referral&utm_campaign=example-app"
+        target="_blank"
+      >
         <img src="/together.ai.png" className="h-[23.3px] min-w-[103px]" />
       </a>
     </div>
