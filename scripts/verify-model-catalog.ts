@@ -1,4 +1,8 @@
-import { CONFIGURED_IMAGE_MODELS } from "../lib/image-generation";
+import {
+  CONFIGURED_IMAGE_MODELS,
+  IMAGE_GENERATION_PRICE_PER_MEGAPIXEL,
+  IMAGE_GENERATION_PRICING_BASE_STEPS,
+} from "../lib/image-generation";
 
 const apiKey = process.env.TOGETHER_API_KEY;
 if (!apiKey) {
@@ -8,7 +12,12 @@ if (!apiKey) {
 type CatalogModel = {
   id?: string;
   type?: string;
-  pricing?: { image_pixel?: { price_per_megapixel?: number } };
+  pricing?: {
+    image_pixel?: {
+      price_per_megapixel?: number;
+      min_steps?: number;
+    };
+  };
 };
 
 async function main() {
@@ -30,16 +39,27 @@ async function main() {
     const serverlessImage =
       entry?.type === "image" &&
       typeof entry.pricing?.image_pixel?.price_per_megapixel === "number";
+    const pricePerMegapixel =
+      entry?.pricing?.image_pixel?.price_per_megapixel ?? null;
+    const pricingBaseSteps = entry?.pricing?.image_pixel?.min_steps ?? null;
+    const pricingMatches =
+      pricePerMegapixel === IMAGE_GENERATION_PRICE_PER_MEGAPIXEL &&
+      pricingBaseSteps === IMAGE_GENERATION_PRICING_BASE_STEPS;
 
     return {
       model,
       present: Boolean(entry),
       type: entry?.type ?? null,
       serverlessImage,
+      pricePerMegapixel,
+      pricingBaseSteps,
+      pricingMatches,
     };
   });
 
-  if (results.some((result) => !result.serverlessImage)) {
+  if (
+    results.some((result) => !result.serverlessImage || !result.pricingMatches)
+  ) {
     throw new Error(`Model verification failed: ${JSON.stringify(results)}`);
   }
 

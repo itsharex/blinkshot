@@ -1,5 +1,11 @@
 import type { ImageGenerationInput } from "@/lib/image-generation";
-import { buildImageGenerationRequest } from "@/lib/image-generation";
+import {
+  IMAGE_GENERATION_HEIGHT,
+  IMAGE_GENERATION_STEPS,
+  IMAGE_GENERATION_WIDTH,
+  buildImageGenerationRequest,
+  estimateImageGenerationCost,
+} from "@/lib/image-generation";
 
 type TogetherImageResponse = {
   id?: string;
@@ -46,7 +52,16 @@ export function buildGenerationTraceSuccess(
   durationMs: number,
 ) {
   const inferenceSeconds = response.data?.[0]?.timings?.inference;
-  const metrics: Record<string, number> = { duration_ms: durationMs };
+  const cost = estimateImageGenerationCost({
+    width: IMAGE_GENERATION_WIDTH,
+    height: IMAGE_GENERATION_HEIGHT,
+    steps: IMAGE_GENERATION_STEPS,
+    imageCount: response.data?.length ?? 0,
+  });
+  const metrics: Record<string, number> = {
+    duration_ms: durationMs,
+    estimated_cost: cost.estimatedCost,
+  };
 
   if (typeof inferenceSeconds === "number") {
     metrics.inference_ms = inferenceSeconds * 1_000;
@@ -61,6 +76,10 @@ export function buildGenerationTraceSuccess(
     },
     metadata: {
       success: true,
+      cost: {
+        currency: "USD",
+        ...cost,
+      },
       usage: sanitizeUsageMetadata(response.usage),
       timings: response.data?.map((item) => item.timings ?? null) ?? [],
     },

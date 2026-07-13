@@ -89,6 +89,7 @@ async function main() {
     ],
     [trace?.metadata?.byok === false, "BYOK metadata is wrong"],
     [(trace?.metrics.duration_ms ?? 0) > 0, "latency metric is missing"],
+    [(trace?.metrics.estimated_cost ?? 0) > 0, "cost metric is missing"],
     [trace?.output?.imageCount === 1, "image count output is wrong"],
     [
       trace?.input?.prompt?.includes(marker) === true,
@@ -124,6 +125,7 @@ async function main() {
         byok: trace?.metadata?.byok,
         durationMs: trace?.metrics.duration_ms,
         inferenceMs: trace?.metrics.inference_ms,
+        estimatedCostUsd: trace?.metrics.estimated_cost,
         usageMetadataReturned: trace?.metadata?.usage != null,
         imageResponseVerified: true,
         privacyChecksPassed: true,

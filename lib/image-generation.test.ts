@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   IMAGE_GENERATION_MODEL,
   buildImageGenerationRequest,
+  estimateImageGenerationCost,
 } from "./image-generation";
 import { serializeBraintrustError } from "./braintrust";
 import {
@@ -69,8 +70,35 @@ test("keeps usage and timings while excluding base64 image data", () => {
   });
   assert.deepEqual(trace.metadata.timings, [{ inference: 0.75 }]);
   assert.equal(trace.metrics.inference_ms, 750);
+  assert.ok(Math.abs(trace.metrics.estimated_cost - 0.0021233664) < 1e-12);
+  assert.deepEqual(trace.metadata.cost, {
+    currency: "USD",
+    pricePerMegapixel: 0.0027,
+    pricingBaseSteps: 4,
+    stepMultiplier: 1,
+    billableMegapixels: 0.786432,
+    estimatedCost: 0.0021233664,
+  });
   assert.equal(serialized.includes(imagePayload), false);
   assert.equal(serialized.includes("b64_json"), false);
+});
+
+test("scales image cost above the pricing step floor", () => {
+  assert.deepEqual(
+    estimateImageGenerationCost({
+      width: 1024,
+      height: 768,
+      steps: 8,
+      imageCount: 2,
+    }),
+    {
+      billableMegapixels: 1.572864,
+      estimatedCost: 0.0084934656,
+      pricePerMegapixel: 0.0027,
+      pricingBaseSteps: 4,
+      stepMultiplier: 2,
+    },
+  );
 });
 
 test("redacts a BYOK secret if a provider error echoes it", () => {
