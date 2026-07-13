@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 
 const baseUrl = process.env.BASE_URL ?? "http://localhost:3000";
 const project = process.env.BRAINTRUST_PROJECT ?? "blinkshot";
+const vercelDeployment = process.env.VERCEL_DEPLOYMENT;
+const vercelScope = process.env.VERCEL_SCOPE ?? "together-ai-0f0e15af";
 const marker = `BT-E2E-${randomUUID()}`;
 const prompt = `A tiny blue lighthouse on a white background. ${marker}`;
 
@@ -47,23 +49,7 @@ function queryRows(): LogRow[] {
 }
 
 async function main() {
-  const response = await fetch(`${baseUrl}/api/generateImages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      prompt,
-      iterativeMode: true,
-      style: "minimal",
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Generation returned ${response.status}: ${await response.text()}`,
-    );
-  }
-
-  const image = (await response.json()) as { b64_json?: string };
+  const image = await requestImage();
   if (!image.b64_json || image.b64_json.length < 100) {
     throw new Error("Generation response did not contain a base64 image");
   }
@@ -71,7 +57,11 @@ async function main() {
   let rows: LogRow[] = [];
   for (let attempt = 0; attempt < 15; attempt += 1) {
     rows = queryRows();
-    if (rows.length > 0) break;
+    if (
+      rows.some((row) => row.metadata?.success === true || row.error != null)
+    ) {
+      break;
+    }
     await new Promise((resolve) => setTimeout(resolve, 2_000));
   }
 
@@ -142,6 +132,54 @@ async function main() {
       2,
     ),
   );
+}
+
+async function requestImage() {
+  const body = JSON.stringify({
+    prompt,
+    iterativeMode: true,
+    style: "minimal",
+  });
+
+  if (vercelDeployment) {
+    const output = execFileSync(
+      "vercel",
+      [
+        "curl",
+        "/api/generateImages",
+        "--deployment",
+        vercelDeployment,
+        "--scope",
+        vercelScope,
+        "--",
+        "--silent",
+        "--show-error",
+        "--fail-with-body",
+        "--request",
+        "POST",
+        "--header",
+        "Content-Type: application/json",
+        "--data",
+        body,
+      ],
+      { encoding: "utf8" },
+    );
+    return JSON.parse(output) as { b64_json?: string };
+  }
+
+  const response = await fetch(`${baseUrl}/api/generateImages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Generation returned ${response.status}: ${await response.text()}`,
+    );
+  }
+
+  return (await response.json()) as { b64_json?: string };
 }
 
 main().catch((error) => {

@@ -98,7 +98,7 @@ export async function POST(req: Request) {
         return Response.json(response.data[0]);
       } catch (error) {
         span?.log({
-          error: serializeBraintrustError(error),
+          error: serializeBraintrustError(error, [userAPIKey]),
           metadata: { success: false },
           metrics: { duration_ms: performance.now() - startedAt },
         });

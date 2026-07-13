@@ -4,6 +4,7 @@ import {
   IMAGE_GENERATION_MODEL,
   buildImageGenerationRequest,
 } from "./image-generation";
+import { serializeBraintrustError } from "./braintrust";
 import {
   buildGenerationTraceStart,
   buildGenerationTraceSuccess,
@@ -70,4 +71,13 @@ test("keeps usage and timings while excluding base64 image data", () => {
   assert.equal(trace.metrics.inference_ms, 750);
   assert.equal(serialized.includes(imagePayload), false);
   assert.equal(serialized.includes("b64_json"), false);
+});
+
+test("redacts a BYOK secret if a provider error echoes it", () => {
+  const secret = "together-secret-key";
+  const error = new Error(`Provider rejected ${secret}`);
+  const serialized = JSON.stringify(serializeBraintrustError(error, [secret]));
+
+  assert.equal(serialized.includes(secret), false);
+  assert.equal(serialized.includes("[REDACTED]"), true);
 });

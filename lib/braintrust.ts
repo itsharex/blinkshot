@@ -55,16 +55,31 @@ export async function logBraintrustFailure(
   }
 }
 
-export function serializeBraintrustError(error: unknown) {
+export function serializeBraintrustError(
+  error: unknown,
+  sensitiveValues: Array<string | undefined> = [],
+) {
+  const redact = (value: string | undefined) => {
+    if (value === undefined) return undefined;
+
+    let redacted = value;
+    for (const sensitiveValue of sensitiveValues) {
+      if (sensitiveValue) {
+        redacted = redacted.replaceAll(sensitiveValue, "[REDACTED]");
+      }
+    }
+    return redacted;
+  };
+
   if (error instanceof Error) {
     return {
       name: error.name,
-      message: error.message,
-      stack: error.stack,
+      message: redact(error.message),
+      stack: redact(error.stack),
     };
   }
 
-  return { message: String(error) };
+  return { message: redact(String(error)) };
 }
 
 export type { Span };
