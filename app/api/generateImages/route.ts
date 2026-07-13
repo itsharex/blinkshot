@@ -3,6 +3,18 @@ import { z } from "zod";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { headers } from "next/headers";
+import {
+  flushBraintrust,
+  getBraintrustLogger,
+  logBraintrustFailure,
+  serializeBraintrustError,
+  type Span,
+} from "@/lib/braintrust";
+import { buildImageGenerationRequest } from "@/lib/image-generation";
+import {
+  buildGenerationTraceStart,
+  buildGenerationTraceSuccess,
+} from "@/lib/generation-tracing";
 
 let ratelimit: Ratelimit | undefined;
 
@@ -18,73 +30,117 @@ if (process.env.UPSTASH_REDIS_REST_URL) {
 }
 
 export async function POST(req: Request) {
-  let json = await req.json();
-  let { prompt, userAPIKey, iterativeMode, style } = z
-    .object({
-      prompt: z.string(),
-      iterativeMode: z.boolean(),
-      userAPIKey: z.string().optional(),
-      style: z.string().optional(),
-    })
-    .parse(json);
+  const logger = getBraintrustLogger();
+  let traceStarted = false;
 
-  // Add observability if a Helicone key is specified, otherwise skip
-  let options: ConstructorParameters<typeof Together>[0] = {};
-  if (process.env.HELICONE_API_KEY) {
-    options.baseURL = "https://together.helicone.ai/v1";
-    options.defaultHeaders = {
-      "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
-      "Helicone-Property-BYOK": userAPIKey ? "true" : "false",
+  try {
+    const json = await req.json();
+    const { prompt, userAPIKey, iterativeMode, style } = z
+      .object({
+        prompt: z.string(),
+        iterativeMode: z.boolean(),
+        userAPIKey: z.string().optional(),
+        style: z.string().optional(),
+      })
+      .parse(json);
+
+    const input = { prompt, iterativeMode, style };
+
+    // Add observability if a Helicone key is specified, otherwise skip
+    const options: ConstructorParameters<typeof Together>[0] = {};
+    if (process.env.HELICONE_API_KEY) {
+      options.baseURL = "https://together.helicone.ai/v1";
+      options.defaultHeaders = {
+        "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+        "Helicone-Property-BYOK": userAPIKey ? "true" : "false",
+      };
+    }
+
+    const client = new Together(options);
+
+    if (userAPIKey) {
+      client.apiKey = userAPIKey;
+    }
+
+    if (ratelimit && !userAPIKey) {
+      const identifier = await getIPAddress();
+
+      const { success } = await ratelimit.limit(identifier);
+      if (!success) {
+        return Response.json(
+          "No requests left. Please add your own API key or try again in 24h.",
+          {
+            status: 429,
+          },
+        );
+      }
+    }
+
+    const generateImage = async (span?: Span) => {
+      const imageRequest = buildImageGenerationRequest(input);
+      const startedAt = performance.now();
+
+      try {
+        const response = await client.images.create({
+          prompt: imageRequest.effectivePrompt,
+          model: imageRequest.model,
+          width: imageRequest.width,
+          height: imageRequest.height,
+          seed: imageRequest.seed,
+          steps: imageRequest.steps,
+          // @ts-expect-error - this is not typed in the API
+          response_format: "base64",
+        });
+
+        span?.log(
+          buildGenerationTraceSuccess(response, performance.now() - startedAt),
+        );
+        return Response.json(response.data[0]);
+      } catch (error) {
+        span?.log({
+          error: serializeBraintrustError(error),
+          metadata: { success: false },
+          metrics: { duration_ms: performance.now() - startedAt },
+        });
+        return Response.json(
+          { error: String(error) },
+          {
+            status: 500,
+          },
+        );
+      }
     };
-  }
 
-  const client = new Together(options);
+    if (!logger) return await generateImage();
 
-  if (userAPIKey) {
-    client.apiKey = userAPIKey;
-  }
-
-  if (ratelimit && !userAPIKey) {
-    const identifier = await getIPAddress();
-
-    const { success } = await ratelimit.limit(identifier);
-    if (!success) {
-      return Response.json(
-        "No requests left. Please add your own API key or try again in 24h.",
+    traceStarted = true;
+    const response = await logger.traced((span) => generateImage(span), {
+      name: "blinkshot.generate-image",
+      type: "llm",
+      event: buildGenerationTraceStart(input, Boolean(userAPIKey)),
+    });
+    await flushBraintrust();
+    return response;
+  } catch (error) {
+    if (!traceStarted) {
+      await logBraintrustFailure(
         {
-          status: 429,
+          name: "blinkshot.generate-image",
+          type: "llm",
+          event: {
+            metadata: {
+              route: "/api/generateImages",
+              phase: "request-validation",
+              success: false,
+            },
+          },
         },
+        error,
       );
     }
+    await flushBraintrust();
+    return Response.json({ error: String(error) }, { status: 400 });
   }
-
-  if (style) {
-    prompt += `. Use a ${style} style for the image.`;
-  }
-
-  let response;
-  try {
-    response = await client.images.create({
-      prompt,
-      model: "black-forest-labs/FLUX.1-schnell",
-      width: 1024,
-      height: 768,
-      seed: iterativeMode ? 123 : undefined,
-      steps: 3,
-      // @ts-expect-error - this is not typed in the API
-      response_format: "base64",
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (e: any) {
-    return Response.json(
-      { error: e.toString() },
-      {
-        status: 500,
-      },
-    );
-  }
-
-  return Response.json(response.data[0]);
 }
 
 export const runtime = "edge";
