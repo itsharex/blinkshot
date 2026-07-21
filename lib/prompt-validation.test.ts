@@ -34,6 +34,7 @@ type Fixtures = {
   tweenBlocked: string[];
   newSharedBlocked: string[];
   sexyCurvyAllowed: string[];
+  sexyCurvyBlocked: string[];
   geologyFp: string[];
   nonEnglishBlocked: string[];
   nonEnglishBenign: string[];
@@ -161,10 +162,28 @@ test("allows ambiguous common words that would cause false positives", () => {
 });
 
 test("keeps borderline adjectives with benign uses allowed (sexy/curvy)", { skip: !FX }, () => {
-  // "a sexy sports car" / "a curvy mountain road" must stay allowed as bare
-  // blocks; gate them via a phrase rule if needed, not a bare token.
+  // `sexy`/`curvy` are gated by a server-only phrase rule (not a bare block), so
+  // benign object uses stay allowed — including the hard cases where a person
+  // appears elsewhere in an otherwise-benign prompt ("a sexy sports car with a
+  // woman standing next to it", "a curvy road with a girl riding a bike"): the
+  // adjective must directly precede a person noun to fire. See gitignored fixtures.
   for (const prompt of FX!.sexyCurvyAllowed) {
     assert.deepEqual(validatePrompt(prompt), { ok: true });
+  }
+});
+
+test("blocks sexualized adjectives applied to a person or standalone (server tier)", { skip: !FX }, () => {
+  // The phrase rule catches `sexy`/`curvy` applied to a person ("a sexy girl") and
+  // a standalone adjective (a bare "sexy" has no benign use). All block at the
+  // server tier; the client validator does not run this server-only rule. See
+  // gitignored fixtures.
+  for (const prompt of FX!.sexyCurvyBlocked) {
+    assert.deepEqual(validatePrompt(prompt), {
+      ok: false,
+      reason: "blocked_term",
+      tier: "server",
+    });
+    assert.deepEqual(validatePromptShared(prompt), { ok: true });
   }
 });
 

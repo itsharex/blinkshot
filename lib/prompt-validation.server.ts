@@ -92,6 +92,57 @@ function hasMinorAgePhrase(prompt: string): boolean {
   return false;
 }
 
+// Sexualized adjectives with benign object uses ("a sexy sports car", "a curvy
+// winding road") that become sexual when applied to a person. A bare block would
+// false-positive on the benign object uses, so this gates them by context: block
+// when the prompt reduces to just the adjective + filler (a standalone
+// "sexy"/"curvy" has no benign image-gen use — benign uses always carry an object
+// noun), or when the adjective directly precedes a person noun ("a sexy girl").
+// Direct adjacency — not mere co-occurrence — is what avoids the false positive
+// where a person appears elsewhere in an otherwise-benign prompt: "a curvy road
+// with a girl riding a bike" stays allowed (the girl isn't adjacent to "curvy").
+// Server-only; tier "server". (Concrete example prompts live in the gitignored
+// BAD-PROMPTS.md, not in source.)
+const SEXUALIZED_ADJECTIVES = new Set(["sexy", "curvy"]);
+const ADJECTIVE_INTENSIFIERS = new Set([
+  "very", "extremely", "super", "really", "so", "quite", "pretty", "highly", "too",
+]);
+// Function words only (never content nouns) — used to detect a standalone
+// sexualized adjective with no object. Keeping this function-only is what
+// prevents a content noun from being mistaken for filler (which would over-block).
+const FILLER_WORDS = new Set([
+  "a", "an", "the", "of", "with", "and", "on", "in", "at", "to", "is", "are", "was",
+  "be", "that", "it", "as", "by", "for", "from", "this", "or", "but",
+]);
+// Person-reference nouns. Directly adjacent to a sexualized adjective they make
+// the phrase sexual ("a sexy girl"); the same nouns elsewhere are benign and are
+// deliberately excluded from the bare blocklists (see the exclusion tests).
+// `model` is intentionally omitted — it is ambiguous (fashion model vs. car/3D
+// model) and would false-positive on "a sexy model car".
+const PERSON_TOKENS = new Set([
+  "girl", "woman", "women", "boy", "man", "lady", "babe", "chick", "guy",
+  "nurse", "teacher", "person", "dude", "gentleman", "gal",
+]);
+function hasSexualizedAdjectivePhrase(prompt: string): boolean {
+  const tokens = tokenizePrompt(prompt);
+  // Standalone: no content noun remains (only the adjective + intensifiers +
+  // function words) → a bare sexualized adjective, which has no benign use.
+  const hasContentNoun = tokens.some(
+    (t) =>
+      !SEXUALIZED_ADJECTIVES.has(t) &&
+      !ADJECTIVE_INTENSIFIERS.has(t) &&
+      !FILLER_WORDS.has(t),
+  );
+  for (let i = 0; i < tokens.length; i++) {
+    if (!SEXUALIZED_ADJECTIVES.has(tokens[i])) continue;
+    if (!hasContentNoun) return true;
+    // Direct adjacency: the adjective immediately precedes a person noun.
+    const next = tokens[i + 1];
+    if (next && PERSON_TOKENS.has(next)) return true;
+  }
+  return false;
+}
+
 // Full validation: length, then shared terms (tier "shared"), then server-only
 // CSAM terms (tier "server"). The route uses this so the server always
 // enforces the complete blocklist regardless of who calls.
@@ -124,6 +175,12 @@ export function validatePrompt(prompt: string): PromptValidation {
 
   // Age-phrase CSAM (minor age + "year/yr old") — see hasMinorAgePhrase.
   if (hasMinorAgePhrase(prompt)) {
+    return { ok: false, reason: "blocked_term", tier: "server" };
+  }
+
+  // Sexualized-adjective phrase rule (server-only). Closes the `sexy`/`curvy`
+  // adult-tail gap the bare blocklist can't safely cover (benign object uses).
+  if (hasSexualizedAdjectivePhrase(prompt)) {
     return { ok: false, reason: "blocked_term", tier: "server" };
   }
 
