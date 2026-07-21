@@ -29,6 +29,23 @@ const SERVER_ONLY_BLOCKED_TERMS: ReadonlySet<string> = decodeTerms(
   "cHJldGVlbgp1bmRlcmFnZQp0d2Vlbgpsb2xpCmxvbGljb24Kc2hvdGEKc2hvdGFjb24KdG9kZGxlcmNvbgpwZWRvcGhpbGUKcGVkb3BoaWxpYQpwZWRvCmtpZGRpZQpraWRkeQpjc2Ft",
 );
 
+// Non-English sexual/anatomy terms, base64-encoded (see `decodeTerms`) and
+// matched as whole ASCII-folded tokens (diacritics stripped first by
+// `tokenizePrompt`, so e.g. an accented German token folds before matching). NOT
+// shipped to the client (server-only). Curated from the 2026-07-21 Braintrust
+// audit of non-English abuse prompts that returned images — Portuguese, Swahili,
+// and German — because the enguard-8m model is an English BERT and scores these
+// well under threshold. Deliberately narrow and evidence-based (only terms
+// observed succeeding in prod) so benign non-English prompts stay unblocked
+// (e.g. a Portuguese Wikipedia paste, Italian news-article images); the Swahili
+// infinitive for "to stand" (a benign common verb that co-occurs in the spam) is
+// deliberately NOT blocked, since the spam's sexual-organ term alone catches
+// every observed variant. Extend only with log-confirmed terms; regenerate the
+// blob from the gitignored BAD-PROMPTS.md when extending.
+const NON_ENGLISH_BLOCKED_TERMS: ReadonlySet<string> = decodeTerms(
+  "bnVhCnNleG8KYnVjZXRhCmdvemFuZG8KdXVtZQpicnVzdGVuCmJydXN0ZQpidXNlbg==",
+);
+
 // Minor-age word forms (all <= 17). Used by the age-phrase rule below.
 const MINOR_AGE_WORDS: ReadonlySet<string> = new Set([
   "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
@@ -93,6 +110,14 @@ export function validatePrompt(prompt: string): PromptValidation {
 
   for (const token of tokens) {
     if (SERVER_ONLY_BLOCKED_TERMS.has(token)) {
+      return { ok: false, reason: "blocked_term", tier: "server" };
+    }
+  }
+
+  // Non-English sexual/anatomy terms (server-only; ASCII-folded by the
+  // tokenizer). Closes the gap the English-BERT ML gate leaves on PT/Swahili/DE.
+  for (const token of tokens) {
+    if (NON_ENGLISH_BLOCKED_TERMS.has(token)) {
       return { ok: false, reason: "blocked_term", tier: "server" };
     }
   }

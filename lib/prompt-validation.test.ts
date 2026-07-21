@@ -35,6 +35,8 @@ type Fixtures = {
   newSharedBlocked: string[];
   sexyCurvyAllowed: string[];
   geologyFp: string[];
+  nonEnglishBlocked: string[];
+  nonEnglishBenign: string[];
 };
 let FX: Fixtures | null = null;
 if (existsSync(fixturesPath)) {
@@ -174,6 +176,42 @@ test("accepted FP: a benign geology phrase that now blocks", { skip: !FX }, () =
     reason: "blocked_term",
     tier: "shared",
   });
+});
+
+test("tokenizePrompt folds Latin diacritics to ASCII (for non-English matching)", () => {
+  // Folding is a no-op for plain ASCII; needed so accented non-English abuse
+  // tokens match the server-only term set. Benign examples only — the real
+  // accented abuse tokens are exercised via the gitignored fixtures below.
+  assert.deepEqual(tokenizePrompt("café au lait"), ["cafe", "au", "lait"]);
+  assert.deepEqual(tokenizePrompt("naïve Müller"), ["naive", "muller"]);
+  assert.deepEqual(tokenizePrompt("Piñata"), ["pinata"]);
+});
+
+test("blocks non-English sexual terms at the server tier (client does not see them)", { skip: !FX }, () => {
+  // PT / Swahili / DE abuse prompts that returned images in prod (see gitignored
+  // fixtures). The enguard-8m model is an English BERT and scores these under
+  // threshold, so the deterministic server set is the reliable catch. All are
+  // blocked at the server tier; the client validator must let them through —
+  // these terms are server-only by design.
+  for (const prompt of FX!.nonEnglishBlocked) {
+    assert.deepEqual(validatePrompt(prompt), {
+      ok: false,
+      reason: "blocked_term",
+      tier: "server",
+    });
+    assert.deepEqual(validatePromptShared(prompt), { ok: true });
+  }
+});
+
+test("non-English benign text is not blocked (whole-token matching avoids FP)", { skip: !FX }, () => {
+  // Real benign non-English prompts from prod: a Portuguese Wikipedia paste
+  // (Book of Revelation) and an Italian news-article request whose body contains
+  // "continua" — which has "nua" as a substring but is a whole token, so the
+  // whole-token match must NOT fire. Locks the non-English false-positive
+  // protection alongside the base64 diacritic folding.
+  for (const prompt of FX!.nonEnglishBenign) {
+    assert.deepEqual(validatePrompt(prompt), { ok: true });
+  }
 });
 
 test("accepts a benign prompt", () => {

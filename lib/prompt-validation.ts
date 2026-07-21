@@ -47,12 +47,25 @@ export type PromptValidation =
       tier?: "shared" | "server";
     };
 
-// Lowercase and split on any run of non-alphanumeric characters, then drop
-// empties. This yields whole-word tokens, so a benign word that merely contains
-// a blocked substring (see the gitignored fixtures) is never matched.
+// Lowercase, fold Latin diacritics to ASCII (`café` → `cafe`, `naïve` → `naive`)
+// — needed so accented non-English abuse tokens match the server-only term set —
+// then split on any run of non-alphanumeric characters and drop empties. Folding
+// is a no-op for plain ASCII, so English matching is unchanged. This yields
+// whole-word tokens, so a benign word that merely contains a blocked substring
+// (see the gitignored fixtures) is never matched.
+// Combining diacritical marks (U+0300–U+036F), stripped after NFD decomposition
+// so accented tokens fold to ASCII (`café` → `cafe`). Built from code points to
+// keep the source readable — no invisible combining characters in a regex literal.
+const COMBINING_DIACRITICS = new RegExp(
+  "[" + String.fromCharCode(0x0300) + "-" + String.fromCharCode(0x036f) + "]",
+  "g",
+);
+
 export function tokenizePrompt(prompt: string): string[] {
   return prompt
     .toLowerCase()
+    .normalize("NFD")
+    .replace(COMBINING_DIACRITICS, "")
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
 }
