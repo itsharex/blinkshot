@@ -17,6 +17,10 @@ export type ModerationDecisionDescription = {
   message: string;
   logMetadata: {
     rejectionReason: "ml_blocked";
+    // Coarse mechanism label for the block-rate dashboard, matching the
+    // `rejectionRule` field produced by `describePromptRejection` on the
+    // deterministic side — "ml" = the enguard-8m residual gate. No prompt text.
+    rejectionRule: "ml";
     score: number;
     threshold: number;
     promptLength: number;
@@ -404,6 +408,7 @@ export function describeModerationDecision(
     message: "Your prompt was flagged by moderation.",
     logMetadata: {
       rejectionReason: "ml_blocked",
+      rejectionRule: "ml",
       score: decision.score,
       threshold: decision.threshold,
       promptLength: prompt.length,

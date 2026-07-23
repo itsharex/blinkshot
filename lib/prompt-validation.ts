@@ -39,12 +39,26 @@ export const SHARED_BLOCKED_TERMS: ReadonlySet<string> = decodeTerms(
 
 export type PromptValidationReason = "too_short" | "blocked_term";
 
+// Coarse category naming WHICH mechanism rejected a prompt. Propagated to the
+// Braintrust rejection metadata (as `rejectionRule`) so the block-rate dashboard
+// can break blocks down by mechanism — WITHOUT storing any prompt text or the
+// specific matched term (the privacy contract is still "no raw prompt text").
+// The client validator (`validatePromptShared`) only ever produces "shared-term";
+// the server-only rules produce the rest. See `describePromptRejection`.
+export type PromptRejectionRule =
+  | "shared-term"
+  | "csam-term"
+  | "non-english-term"
+  | "minor-age-phrase"
+  | "sexualized-phrase";
+
 export type PromptValidation =
   | { ok: true }
   | {
       ok: false;
       reason: PromptValidationReason;
       tier?: "shared" | "server";
+      rule?: PromptRejectionRule;
     };
 
 // Lowercase, fold Latin diacritics to ASCII (`café` → `cafe`, `naïve` → `naive`)
@@ -92,7 +106,7 @@ export function validatePromptShared(prompt: string): PromptValidation {
   }
 
   if (findBlockedTerm(prompt, SHARED_BLOCKED_TERMS) !== null) {
-    return { ok: false, reason: "blocked_term", tier: "shared" };
+    return { ok: false, reason: "blocked_term", tier: "shared", rule: "shared-term" };
   }
 
   return { ok: true };

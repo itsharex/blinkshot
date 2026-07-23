@@ -76,11 +76,13 @@ test("blocks shared NSFW terms case-insensitively and reports the shared tier", 
       ok: false,
       reason: "blocked_term",
       tier: "shared",
+      rule: "shared-term",
     });
     assert.deepEqual(validatePrompt(prompt), {
       ok: false,
       reason: "blocked_term",
       tier: "shared",
+      rule: "shared-term",
     });
   }
 });
@@ -107,6 +109,7 @@ test("the server validator blocks CSAM terms and reports the server tier", { ski
       ok: false,
       reason: "blocked_term",
       tier: "server",
+      rule: "csam-term",
     });
   }
 });
@@ -116,6 +119,7 @@ test("the server validator also catches shared terms (full union)", { skip: !FX 
     ok: false,
     reason: "blocked_term",
     tier: "shared",
+    rule: "shared-term",
   });
 });
 
@@ -127,6 +131,7 @@ test("the server validator blocks the minor-age euphemism from the 2026-07-21 lo
     ok: false,
     reason: "blocked_term",
     tier: "server",
+    rule: "csam-term",
   });
   // The client must not see the server-only term.
   assert.deepEqual(validatePromptShared(FX!.tweenBlocked[0]), { ok: true });
@@ -142,6 +147,7 @@ test("blocks the 2026-07-21 adult-tail additions at shared tier", { skip: !FX },
       ok: false,
       reason: "blocked_term",
       tier: "shared",
+      rule: "shared-term",
     });
   }
 });
@@ -182,6 +188,7 @@ test("blocks sexualized adjectives applied to a person or standalone (server tie
       ok: false,
       reason: "blocked_term",
       tier: "server",
+      rule: "sexualized-phrase",
     });
     assert.deepEqual(validatePromptShared(prompt), { ok: true });
   }
@@ -194,6 +201,7 @@ test("accepted FP: a benign geology phrase that now blocks", { skip: !FX }, () =
     ok: false,
     reason: "blocked_term",
     tier: "shared",
+    rule: "shared-term",
   });
 });
 
@@ -217,6 +225,7 @@ test("blocks non-English sexual terms at the server tier (client does not see th
       ok: false,
       reason: "blocked_term",
       tier: "server",
+      rule: "non-english-term",
     });
     assert.deepEqual(validatePromptShared(prompt), { ok: true });
   }
@@ -262,6 +271,7 @@ test("server age-phrase rule blocks stated minor ages (digit + word forms)", { s
       ok: false,
       reason: "blocked_term",
       tier: "server",
+      rule: "minor-age-phrase",
     });
   }
 });
@@ -289,6 +299,7 @@ test("accepted FP: minor-age phrases block even non-human subjects", { skip: !FX
     ok: false,
     reason: "blocked_term",
     tier: "server",
+    rule: "minor-age-phrase",
   });
 });
 
@@ -305,6 +316,7 @@ test("describePromptRejection: too_short is not logged and gives the length hint
   assert.deepEqual(rejection.logMetadata, {
     rejectionReason: "too_short",
     blocklistTier: null,
+    rejectionRule: null,
     promptLength: 2,
   });
 });
@@ -312,7 +324,7 @@ test("describePromptRejection: too_short is not logged and gives the length hint
 test("describePromptRejection: a shared-tier blocked_term is logged with tier + length", () => {
   const prompt = "a benign placeholder prompt";
   const rejection = describePromptRejection(
-    { ok: false, reason: "blocked_term", tier: "shared" },
+    { ok: false, reason: "blocked_term", tier: "shared", rule: "shared-term" },
     prompt,
   );
   assert.equal(rejection.shouldLog, true);
@@ -320,6 +332,7 @@ test("describePromptRejection: a shared-tier blocked_term is logged with tier + 
   assert.deepEqual(rejection.logMetadata, {
     rejectionReason: "blocked_term",
     blocklistTier: "shared",
+    rejectionRule: "shared-term",
     promptLength: prompt.trim().length,
   });
 });
@@ -354,6 +367,7 @@ test("describePromptRejection: end-to-end — a real blocked prompt is logged", 
     const rejection = describePromptRejection(validation, prompt);
     assert.equal(rejection.shouldLog, true);
     assert.equal(rejection.logMetadata.blocklistTier, "server");
+    assert.equal(rejection.logMetadata.rejectionRule, "csam-term");
     assert.equal(rejection.message, "Your prompt contains content that isn't allowed.");
   }
 });

@@ -13,6 +13,7 @@ import {
   decodeTerms,
   isPromptTooShort,
   tokenizePrompt,
+  type PromptRejectionRule,
   type PromptValidation,
   type PromptValidationReason,
 } from "./prompt-validation";
@@ -153,15 +154,19 @@ export function validatePrompt(prompt: string): PromptValidation {
 
   const tokens = tokenizePrompt(prompt);
 
+  // Each return carries a `rule` — the coarse mechanism label surfaced to the
+  // Braintrust rejection metadata (via describePromptRejection → `rejectionRule`)
+  // so the block-rate dashboard can break blocks down by mechanism without
+  // storing prompt text or the matched term. See `PromptRejectionRule`.
   for (const token of tokens) {
     if (SHARED_BLOCKED_TERMS.has(token)) {
-      return { ok: false, reason: "blocked_term", tier: "shared" };
+      return { ok: false, reason: "blocked_term", tier: "shared", rule: "shared-term" };
     }
   }
 
   for (const token of tokens) {
     if (SERVER_ONLY_BLOCKED_TERMS.has(token)) {
-      return { ok: false, reason: "blocked_term", tier: "server" };
+      return { ok: false, reason: "blocked_term", tier: "server", rule: "csam-term" };
     }
   }
 
@@ -169,19 +174,19 @@ export function validatePrompt(prompt: string): PromptValidation {
   // tokenizer). Closes the gap the English-BERT ML gate leaves on PT/Swahili/DE.
   for (const token of tokens) {
     if (NON_ENGLISH_BLOCKED_TERMS.has(token)) {
-      return { ok: false, reason: "blocked_term", tier: "server" };
+      return { ok: false, reason: "blocked_term", tier: "server", rule: "non-english-term" };
     }
   }
 
   // Age-phrase CSAM (minor age + "year/yr old") — see hasMinorAgePhrase.
   if (hasMinorAgePhrase(prompt)) {
-    return { ok: false, reason: "blocked_term", tier: "server" };
+    return { ok: false, reason: "blocked_term", tier: "server", rule: "minor-age-phrase" };
   }
 
   // Sexualized-adjective phrase rule (server-only). Closes the `sexy`/`curvy`
   // adult-tail gap the bare blocklist can't safely cover (benign object uses).
   if (hasSexualizedAdjectivePhrase(prompt)) {
-    return { ok: false, reason: "blocked_term", tier: "server" };
+    return { ok: false, reason: "blocked_term", tier: "server", rule: "sexualized-phrase" };
   }
 
   return { ok: true };
@@ -203,6 +208,7 @@ export function describePromptRejection(
   logMetadata: {
     rejectionReason: PromptValidationReason;
     blocklistTier: "shared" | "server" | null;
+    rejectionRule: PromptRejectionRule | null;
     promptLength: number;
   };
 } {
@@ -216,6 +222,9 @@ export function describePromptRejection(
     logMetadata: {
       rejectionReason: reason,
       blocklistTier: validation.tier ?? null,
+      // Coarse mechanism label for the block-rate dashboard (no prompt text, no
+      // specific matched term — the privacy contract is preserved).
+      rejectionRule: validation.rule ?? null,
       promptLength: prompt.trim().length,
     },
   };
