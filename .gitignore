@@ -37,6 +37,9 @@ next-env.d.ts
 
 .env
 BAD-PROMPTS.md
+# Post-release safety-metrics runbook — internal (Braintrust project ID + pre-fix
+# abuse rates). The public blog/tweet is a sanitized derivative, not this file.
+MONITORING_AFTER_RELEASE.md
 
 # Moderation eval tooling — never commit. data/ holds real abuse prompts pulled
 # from Braintrust; models/ holds downloaded weights. Only the deployable artifact
@@ -49,3 +52,4 @@ lib/moderation/reference_scores.json
 # committed; the abuse-prompt tests skip gracefully when this file is absent
 # (mirrors reference_scores.json above).
 lib/prompt-validation.fixtures.json
+MONITORING_AFTER_RELEASE.md
