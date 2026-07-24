@@ -31,6 +31,19 @@ test("allows when Referer origin matches and Origin is absent", () => {
   );
 });
 
+test("allows Origin and Referer matching the actual request URL", () => {
+  assert.equal(
+    isAllowedOrigin({
+      origin: "https://www.blinkshot.io",
+      referer: "https://www.blinkshot.io/",
+      secFetchSite: null,
+      allowedOrigins: new Set(["https://blinkshot-deployment.vercel.app"]),
+      requestUrl: "https://www.blinkshot.io/api/generateImages",
+    }),
+    true,
+  );
+});
+
 test("allows via Sec-Fetch-Site: same-origin with no Origin/Referer", () => {
   assert.equal(
     isAllowedOrigin({
@@ -62,6 +75,7 @@ test("rejects a cross-origin Origin", () => {
       referer: null,
       secFetchSite: null,
       allowedOrigins: allowed,
+      requestUrl: "https://blinkshot.example/api/generateImages",
     }),
     false,
   );

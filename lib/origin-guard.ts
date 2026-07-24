@@ -11,6 +11,9 @@ export type OriginGuardInput = {
   referer: string | null;
   secFetchSite: string | null;
   allowedOrigins: ReadonlySet<string>;
+  // The URL Vercel resolved for this request. Its origin covers custom domains
+  // without requiring a separately configured allowlist entry.
+  requestUrl?: string;
   // When true, any http(s)://localhost or 127.0.0.1 origin is accepted.
   // Harmless in production (no real traffic carries a localhost origin) and
   // keeps local dev from breaking on arbitrary ports.
@@ -22,6 +25,7 @@ export function isAllowedOrigin({
   referer,
   secFetchSite,
   allowedOrigins,
+  requestUrl,
   allowLocalhost = false,
 }: OriginGuardInput): boolean {
   // Modern browsers send Sec-Fetch-Site: same-origin for the app's own
@@ -32,14 +36,29 @@ export function isAllowedOrigin({
     return true;
   }
 
-  if (origin !== null && isAllowedOriginValue(origin, allowedOrigins, allowLocalhost)) {
+  const requestOrigin = requestUrl === undefined ? null : originOf(requestUrl);
+
+  if (
+    origin !== null &&
+    isAllowedOriginValue(
+      origin,
+      allowedOrigins,
+      requestOrigin,
+      allowLocalhost,
+    )
+  ) {
     return true;
   }
 
   const refererOrigin = referer === null ? null : originOf(referer);
   if (
     refererOrigin !== null &&
-    isAllowedOriginValue(refererOrigin, allowedOrigins, allowLocalhost)
+    isAllowedOriginValue(
+      refererOrigin,
+      allowedOrigins,
+      requestOrigin,
+      allowLocalhost,
+    )
   ) {
     return true;
   }
@@ -50,9 +69,10 @@ export function isAllowedOrigin({
 function isAllowedOriginValue(
   value: string,
   allowed: ReadonlySet<string>,
+  requestOrigin: string | null,
   allowLocalhost: boolean,
 ): boolean {
-  if (allowed.has(value)) {
+  if (value === requestOrigin || allowed.has(value)) {
     return true;
   }
   if (allowLocalhost && isLocalhostOrigin(value)) {

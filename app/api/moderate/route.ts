@@ -59,6 +59,7 @@ export async function POST(req: Request) {
       referer: headersList.get("referer"),
       secFetchSite: headersList.get("sec-fetch-site"),
       allowedOrigins,
+      requestUrl: req.url,
       allowLocalhost: process.env.NODE_ENV !== "production",
     })
   ) {
