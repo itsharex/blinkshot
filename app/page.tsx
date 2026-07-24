@@ -3,7 +3,7 @@
 import StyleDialog from "@/components/style-dialog";
 import Spinner from "@/components/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { IMAGE_PROMPTS } from "@/lib/config";
+import { validatePromptShared } from "@/lib/prompt-validation";
 import imagePlaceholder from "@/public/image-placeholder.png";
 import { Banner } from "@/components/layout/banner";
 import { Header } from "@/components/layout/header";
@@ -38,6 +38,11 @@ function HomeContent() {
   const wordCount = prompt.trim() ? prompt.trim().split(/\s+/).length : 0;
   const debounceDelay = wordCount <= 2 ? 900 : wordCount <= 5 ? 600 : 350;
   const debouncedPrompt = useDebounce(prompt, debounceDelay);
+  // Shared (client-safe) prompt validation: gates the query (debounced) and
+  // drives the input hint (current). CSAM terms are server-only by design, so
+  // the client only sees generic NSFW + the length check here.
+  const promptValidation = validatePromptShared(prompt);
+  const debouncedValidation = validatePromptShared(debouncedPrompt);
   const {
     sessions,
     currentSession,
@@ -54,7 +59,7 @@ function HomeContent() {
 
   // Style selection handled by StyleDialog component
 
-  const isQueryEnabled = !!debouncedPrompt.trim() && !isRestoring;
+  const isQueryEnabled = debouncedValidation.ok && !isRestoring;
   const { data: image, isFetching } = useQuery<ImageResponse | null>({
     placeholderData: (previousData) => previousData,
     queryKey: [debouncedPrompt + selectedStyleValue],
@@ -68,7 +73,7 @@ function HomeContent() {
         signal,
         body: JSON.stringify({
           prompt,
-          style: IMAGE_PROMPTS[selectedStyleValue],
+          style: selectedStyleValue || undefined,
           userAPIKey,
           iterativeMode,
         }),
@@ -173,6 +178,13 @@ function HomeContent() {
                   <Spinner className="size-4" />
                 </div>
               </div>
+              {prompt.trim() && !promptValidation.ok ? (
+                <p className="mt-2 text-xs text-gray-350">
+                  {promptValidation.reason === "too_short"
+                    ? "Keep typing…"
+                    : "This prompt can't be used."}
+                </p>
+              ) : null}
               <div className="mt-3 flex items-center justify-start gap-1.5 text-sm md:text-right">
                 <div>
                   <StyleDialog

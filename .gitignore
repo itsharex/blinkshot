@@ -36,3 +36,19 @@ yarn-error.log*
 next-env.d.ts
 
 .env
+BAD-PROMPTS.md
+# Post-release safety-metrics runbook — internal (Braintrust project ID + pre-fix
+# abuse rates). The public blog/tweet is a sanitized derivative, not this file.
+MONITORING_AFTER_RELEASE.md
+
+# Moderation eval tooling — never commit. data/ holds real abuse prompts pulled
+# from Braintrust; models/ holds downloaded weights. Only the deployable artifact
+# lib/moderation/model.json (numeric weights, no prompt text) is committed.
+scripts/moderation-eval/
+# Reference prompts for the local parity test (clinical adult phrases). Not
+# committed; the parity test skips gracefully when this file is absent.
+lib/moderation/reference_scores.json
+# Real abuse-prompt fixtures for the prompt-validation blocklist tests. Not
+# committed; the abuse-prompt tests skip gracefully when this file is absent
+# (mirrors reference_scores.json above).
+lib/prompt-validation.fixtures.json

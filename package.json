@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "tsx --test 'lib/**/*.test.ts'",
+    "test": "tsx --conditions react-server --test 'lib/**/*.test.ts'",
     "verify:braintrust": "tsx scripts/verify-braintrust-trace.ts",
     "verify:models": "tsx scripts/verify-model-catalog.ts"
   },
@@ -34,6 +34,7 @@
     "react": "^18",
     "react-dom": "^18",
     "react-hot-toast": "^2.4.1",
+    "server-only": "^0.0.1",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "together-ai": "^0.6.0-alpha.4",
