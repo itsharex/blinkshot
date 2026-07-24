@@ -3,7 +3,6 @@
 import StyleDialog from "@/components/style-dialog";
 import Spinner from "@/components/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { IMAGE_PROMPTS } from "@/lib/config";
 import { validatePromptShared } from "@/lib/prompt-validation";
 import imagePlaceholder from "@/public/image-placeholder.png";
 import { Banner } from "@/components/layout/banner";
@@ -74,7 +73,7 @@ function HomeContent() {
         signal,
         body: JSON.stringify({
           prompt,
-          style: IMAGE_PROMPTS[selectedStyleValue],
+          style: selectedStyleValue || undefined,
           userAPIKey,
           iterativeMode,
         }),

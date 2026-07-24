@@ -11,6 +11,7 @@ import {
   type Span,
 } from "@/lib/braintrust";
 import { buildImageGenerationRequest } from "@/lib/image-generation";
+import { imageStyleSlugSchema } from "@/lib/image-style-slugs";
 import {
   buildGenerationTraceStart,
   buildGenerationTraceSuccess,
@@ -107,7 +108,7 @@ export async function POST(req: Request) {
         prompt: z.string(),
         iterativeMode: z.boolean(),
         userAPIKey: z.string().optional(),
-        style: z.string().optional(),
+        style: imageStyleSlugSchema.optional(),
       })
       .parse(json);
 

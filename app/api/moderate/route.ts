@@ -6,6 +6,7 @@ import {
   describeModerationDecision,
   moderatePromptWithTiming,
 } from "@/lib/moderation/inference";
+import { isModerationProbeEnabled } from "@/lib/moderation/route-access";
 
 // Allowed origins for the defense-in-depth origin guard. Mirrors
 // app/api/generateImages/route.ts (candidate to extract to lib/origin-guard when
@@ -39,7 +40,12 @@ export async function POST(req: Request) {
   // authoritative gate lives there; this route is only for local dev + Vercel
   // previews (VERCEL_ENV "development"/"preview"), where it verifies the model
   // runs on real infra without a full image call.
-  if (process.env.VERCEL_ENV === "production") {
+  if (
+    !isModerationProbeEnabled({
+      nodeEnv: process.env.NODE_ENV,
+      vercelEnv: process.env.VERCEL_ENV,
+    })
+  ) {
     return Response.json({ error: "Not Found" }, { status: 404 });
   }
 

@@ -52,4 +52,3 @@ lib/moderation/reference_scores.json
 # committed; the abuse-prompt tests skip gracefully when this file is absent
 # (mirrors reference_scores.json above).
 lib/prompt-validation.fixtures.json
-MONITORING_AFTER_RELEASE.md
