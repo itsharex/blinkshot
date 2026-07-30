@@ -216,14 +216,13 @@ export async function POST(req: Request) {
       const startedAt = performance.now();
 
       try {
-        const response = await client.images.create({
+        const response = await client.images.generate({
           prompt: imageRequest.effectivePrompt,
           model: imageRequest.model,
           width: imageRequest.width,
           height: imageRequest.height,
           seed: imageRequest.seed,
           steps: imageRequest.steps,
-          // @ts-expect-error - this is not typed in the API
           response_format: "base64",
         });
 
